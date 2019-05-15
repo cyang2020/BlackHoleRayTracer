@@ -1,0 +1,496 @@
+
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<title>Black Hole Raytracer | CS 184</title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rel="stylesheet" type="text/css" href="main.css"/>
+<link rel="stylesheet" type="text/css" href="res/featherlight.min.css" />
+<link rel="stylesheet" type="text/css"
+    href="https://fonts.googleapis.com/css?family=Open+Sans:400,700">
+</head>
+<body>
+
+<section class="header">
+
+<h1>Final Project: Black Hole Raytracer</h1>
+<h2>Arman T, Casper Y, Lulu W</h2>
+
+</section>
+
+<section class="content">
+
+<section class="partIntro">
+<a href="https://www.youtube.com/watch?v=VTodu1YTURY">Final Video</a>
+<p>Black hole raytracer made using python from scratch. Rendered using image library PIL (Pillow).</p>
+</section>
+
+<section class="partTOC">
+<h3>Table of Contents</h3>
+<ol start="0">
+<li><a href="#abstract">Abstract</a></li>
+<li><a href="#approach">Technical Approach</a></li>
+<li><a href="#results">Results</a></li>
+<li><a href="#references">References</a></li>
+</ol>
+</section>
+
+<section class="abstract">
+<a name="abstract" class="anchor"><h3>Abstract</h3></a>
+
+<p>For this final project for CS184, our group made a physics-based black hole raytracer utilizing Python's image library PIL (Pillow) to render
+the resulting images. The result was a black hole as shown through a surrounding accretion disk which is colored non-black.
+Our logic was based on both physics principles of black holes (i.e. using black hole mass to calculate event horizon radius for
+determining luminance, along with the effect of gravity on light) as well as graphics principles (i.e. ray casting/tracing; utilizing Euler integration to simulate light trajectory). </p>
+
+<p>The program is run simply through running the main function, which will render an image of a black hole and accretion disk utilizing
+  object classes written, and save it to an image (png) file.</p>
+</section>
+
+<section class="approach">
+<a name="approach" class="anchor"><h3>Technical Approach</h3></a>
+<a name="approach-1" class="anchor"><h4>Components of black holes</h4></a>
+<p>
+Event horizon - the radius around the singularity in which light does not escape. This is determined by the Schwarzchild radius, which is simply twice the universal gravitational constant times the mass of the black hole divided by the square of the speed of light in a vacuum. The effect on light starts around 2.6 times this radius, which makes up the "photon sphere," where photons orbit the black hole to either get sucked into the event horizon, or gets redirected into space. This allows for us to see the back of the black hole even while viewing it from the front, and why the event horizon appears much larger that it actually is.
+</p>
+<p>
+Accretion Disk - Made up by dust, gas, and other components. Orbits around the event horizon with great speed and heat, with a
+innermost stable orbit of a radius of 2.6 Schwarzschild radius (anything within the radius gets absorbed into the singularity).
+The same projection of the back happens to accretion disk, when viewing from a different angle, the back of the AD gets projected
+onto both the top and the bottom of the event horizon.
+</p>
+<p>
+What is visible - A projected accretion disk surrounding the event horizon, within that there is a smaller photon ring visible as a ring of light.
+</p>
+
+<a name="approach-2" class="anchor"><h4>Setup</h4></a>
+<p>Since this project involves using light rays cast from the camera to the scene, we had to use largely the same logic of raytracing
+from project 3, albeit with a nonlinear light trajectory in order to simulate the intense gravity affecting light rays as they pass by a black hole.
+However, writing it from scratch turned out to be a lot less tedious than porting over segments of code from project 3 itself, as we would have full control
+over the pipeline, and wouldn't have to go through the trouble of figuring out GUI logic from project 3, the functionalities of which would be much more than we needed.
+We created different classes for the objects needed (black hole, accretion disk, and background objects) in the scene, as well as the tools needed for the renderer
+(camera, renderer, world). Lastly, we utilized the logic for spectrum and ray objects from project 3 in order to write our own <code>ray.py</code>
+and <code>spectrum.py</code> classes.</p>
+
+<p>Our objects comprise black hole, accretion disk, and background objects. Each object has at the minimum an origin and mass. Their compositions are as shown:</p>
+<div class="codeWrapper">
+<code>class BlackHole:
+    def init(...):
+      self.origin
+      self.mass
+      self.radius
+    def hit_by_ray(...)
+    def get_luminance(...)
+</code>
+</div>
+<br />
+<div class="codeWrapper">
+<code>class Disk:
+    def init(...):
+      self.origin
+      self.mass
+      self.inner_radius
+      self.outer_radius
+      self.normal
+    def _intersects_plane(...)
+    def hit_by_ray(...)
+    def get_luminance(...)
+</code>
+</div>
+<br />
+<div class="codeWrapper">
+    <code>class Background:
+        def init(...):
+            self.origin
+            self.mass
+            self.normal
+        def _intersects_plane(...)
+        def hit_by_ray(...)
+        def get_luminance(...)
+    </code>
+</div>
+
+<p>
+  Based on research regarding the physics of light bending behavior surrounding black holes, we were able to deduct the manner in which we
+  would be able to visualize the black hole along with its accretion disk (composed, in real life, of orbiting diffuse material but shown
+  in our renders as a solid colored disk around the black hole sphere). We drew out the initial visualization goal using a painting application
+  as shown:
+</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <p>
+        Initial visualization idea:
+      </p>
+      <td>
+          <div align="middle">
+        <img src="images/orig_idea.png" align="middle" width="300px"/>
+        <figcaption align="middle">Black hole with surrounding accretion disk</figcaption>
+      </td>
+    </tr>
+
+  </table>
+</div>
+
+<p>
+  As can be seen, the black hole is visualized as a black sphere, the radius of which would be the radius of the event horizon and photon sphere, and surrounded by an orange
+  accretion disk, which is the result of orbiting masses as well as the effects of light bending that would cause a "ring"-like shape covering the top of and
+  circling around the black hole.
+</p>
+
+
+<p>Next, our group worked on the logic for writing our own renderer from scratch. This would allow us to do accurate raytracing
+and to visualize our physics. Our final renderer in <code>renderer.py</code> utilizes the python image library Pillow (PIL) in order
+to create a new image with inputted camera resolution (image size). Then we are able to cast rays from the camera into the world/scene,
+allowing us to visualize the physics of light behavior around a black hole defined by a position, mass and radius. Our main
+rendering pipeline is expressed as such:</p>
+
+<ol>
+  <li>Using PIL, create canvas</li>
+  <li>Create a list of objects to render
+    <ul>
+      <li>
+        Each one has an origin and mass
+      </li>
+    </ul>
+  </li>
+  <li>Define a camera with position, FOV, and resolution, and world with a size</li>
+  <li>Shoot a ray from each pixel in render</li>
+  <li>Simulate light ray path (Euler integration)
+    <ul>
+      <li>
+        If it hits an object, return a luminance (spectrum) specified by the object
+      </li>
+      <li>
+        If the operation times out (defined by a max number of timesteps) or the light ray exits the scene, return black
+      </li>
+    </ul>
+  </li>
+  <li>
+    Save this luminance to the canvas at the pixel
+  </li>
+  <li>
+    Save to image
+  </li>
+</ol>
+
+<p>We did not utilize subpixels and supersampling, and thus the renderer itself was quite simple and implemented on a
+per pixel sampling basis. This was largely due to time constraints, as well as the complications of re-writing the render logic
+in a different language from C++. It would have also made the algorithm excrutiatingly slow, considering that we were using Python coupled with the lack of proper parallelization.</p>
+
+<p>
+  In order to implement the correct light behavior of a black hole, we would need to understand the fundamental physics behind it. Through research,
+  we found that the radius of the black hole can be defined by the Schwarzschild solution to Einstein's field equations. This is expressed in the below equation,
+  where G = gravitational constant, M = object mass, and c = speed of light. This radius would serve as the event horizon, wherein light does not escape
+  no matter what. This is shown in our renderings through a solid color or texture different from the rest of the image (or simply black).
+</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+          <div align="middle">
+        <img src="images/bhradius.png" align="middle" width="300px"/>
+        <figcaption align="middle">Schwarzschild equation for black hole radius calculation</figcaption>
+      </td>
+    </tr>
+
+  </table>
+</div>
+
+<p>As for the actual raytracing logic, the simulate_to_end method in <code>ray.py</code> allowed us to utilize light physics as well as
+time stepping along with the raycasting hit logic as dictated by Euler Integration for the objects in the scene: the accretion disk, background, and the black hole itself. simulate_to_end
+outputs a Spectrum object which is the appropriate color for visualizing different objects. We initially generated a visualization of light trajectory using a python script that
+applies the Euler integration and timestepping logic that would allow us to generate nonlinear light rays, as affected by the physics of black hole gravity.</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <p>
+        Light trajectory visualization:
+      </p>
+      <td>
+        <img src="images/light_trajectory.png" align="middle" width="300px"/>
+        <figcaption align="middle">Nonlinear light path</figcaption>
+      </td>
+    </tr>
+
+  </table>
+</div>
+
+<p>
+We planned a sequence of operations in order to implement the raytracing logic for the black hole from the beginning:
+<ul>
+  <li>We cast a light ray from the camera, use Euler integration to simulate its trajectory, until it is:</li>
+  <li>Eaten by the event horizon of a black hole</li>
+  <li>Hits the accretion disk or background: calculate disk/background luminance</li>
+  <li>Exits the skybox</li>
+</ul>
+</p>
+
+<p>
+  To implement the accretion disk, because the accretion disk is defined by a plane and 2 radii (inner and outer), we had to implement plane intersection logic to
+  see if the ray intersection position lies within our specified radii. This was done through similar raytracing plane intersection logic explored in project 3. This required the accretion disk to also have a normal vector, which we defined in our world to be (0,1,0) by default (X being the horizontal axis, Y the vertical, -Z facing the camera, and Z facing away from the camera).
+  If a specific ray hits the plane within the 2 radii, we are able to return a <code>Spectrum</code> luminance.
+</p>
+
+<p>
+  For the accretion disk luminance, we considered two options: either coloring it using a solid spectrum,
+  or, if we had enough time at the end, implementing realistic redshifted luminance as according to the composition of materials in the accretion disk, since the disk contains all elements
+  and has an extremely high temperature (in the magnitude of thousands of millions of Kelvin).
+  Thus, we did some research to find the different appearances of blackbodies under different temperatures up to 10000K - and we ended up finding a website[1]
+  that included a spectrum of different blackbody colors at different Kelvin temperatures, which allowed for a texture comprising of a spectrum of colors.
+  We would also address the redshift from orbital motion according to the special-relativistic redshift formula:
+</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/redshift.png" align="middle" width="300px"/>
+        <figcaption align="middle">Redshift formula</figcaption>
+      </td>
+    </tr>
+
+  </table>
+</div>
+
+<p>
+  However, given time constraints and other issues discussed in the Problems Encountered section, we ended up compromising a realistic redshifted illuminance
+  with a manually colored disk that has a spectrum fading from one color to another. This would at least allow us to create the effect of a more realistic coloring,
+  as gravitation force for an object would be weaker along an increasing distance from its center (according to the gravitational force equation), and the accretion disk
+  would be increasingly diffuse with less concentrated objects.
+</p>
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/gravityequation.png" align="middle" width="300px"/>
+        <figcaption align="middle">Gravity equation</figcaption>
+      </td>
+    </tr>
+
+  </table>
+</div>
+
+
+<a name="approach-3" class="anchor"><h4>Problems Encountered</h4></a>
+<p>
+  We ran into several problems along the course of working on this project, one of which was a large setback due to our already existing time constraints.
+  With our lack of experience writing a full renderer in Python, we did not know initially what tools we had at hand and what we should use. One of our initial team members was going through personal issues and therefore had to withdraw from Berkeley for the semester, after
+  having helped us plan the initial rendering pipeline with his knowledge in the libraries and general logic needed. Due to the unexpected circumstances and the fact that we decided to implement the renderer from scratch,
+  we had to consider utilizing components of project 3 as well as porting our code over to C++, or do as much research as we can regarding Python imaging libraries and how to use them.
+  Despite this initial setback, however, we were able to get help from this team member, Tiger, in order to complete the renderer and be able to visualize our raytracing logic. This allowed us to create the rest of our project with more ease.
+  However, in the end, we ended up scrapping parts of our initial project plan, which was to implement realistic accretion disk texture mapping with redshift illuminance, as well as making an animated version of the black hole
+  in order to most accurately simulate its interaction with light.
+</p>
+
+<a name="approach-4" class="anchor"><h4>Lessons Learned</h4></a>
+<p>
+  We learned that, with writing a project from scratch, there are difficulties in the initial stage of planning the exact structure of the project in the full picture. However,
+  once our goal is broken down, the components of the project are able to be considered individually, and we were able to prevail in implementing the meat of the code with a
+  solid plan for the backbone structure. We also learned that, deviating from the linear light trajectories used in project 3, implementing nonlinear light interaction using a
+  physics based approach was a challenge - however, with enough research and sampling the results of different values of parameters (such as delta t in the <code>ray.py</code> class),
+  we were able to correctly simulate the light trajectory and finally implement that with ray-object intersection to create the appropriate results.
+</p>
+
+</section>
+
+<section class="results">
+<a name="results" class="anchor"><h3>Results</h3></a>
+<p>
+  Our renderings all comprise black holes with the mass of the sun (approximately 3000m in event horizon radius).
+</p>
+
+<a name="results-1" class="anchor"><h4>With colored grid</h4></a>
+<p>The following is a series of renderings of the black hole with a grid background showing the light interaction at different camera angles.</p>
+<!-- <div class="imgholder"><table><tr><td> -->
+  <div align="middle">
+    <tr>
+        <td>
+            <img src="images/nobendingordisk.png" align="middle" width="300px"/>
+            <figcaption align="middle">Black hole without gravity or accretion disk (simple event horizon)</figcaption>
+        </td>
+        <td>
+          <img src="images/grid_nodisk.png" align="middle" width="300px"/>
+          <figcaption align="middle">With gravity; notice the colors coming from the back to appear in the front</figcaption>
+        </td>
+    </tr>
+  </div>
+  <div align="middle">
+    <table style="width=100%">
+      <tr>
+        <p>
+          Renderings of black hole with accretion disk (annotated by normal vector of accretion disk):
+        </p>
+    <td>
+      <img src="images/grid1.png" align="middle" width="300px"/>
+      <figcaption align="middle">(0, 1, 0.25)</figcaption>
+    </td>
+    <td>
+      <img src="images/grid2.png" align="middle" width="300px"/>
+      <figcaption align="middle">(-1, -20, -1)</figcaption>
+    </td>
+    <td>
+      <img src="images/grid3.png" align="middle" width="300px"/>
+      <figcaption align="middle">(-1, -2, -1)</figcaption>
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <img src="images/grid4.png" align="middle" width="300px"/>
+      <figcaption align="middle">(-1, -1, -1)</figcaption>
+    </td>
+    <td>
+      <img src="images/grid5.png" align="middle" width="300px"/>
+      <figcaption align="middle">(0, 0, 1)</figcaption>
+    </td>
+    <td>
+      <img src="images/grid6.png" align="middle" width="300px"/>
+      <figcaption align="middle">(0, 1, 0) (default)</figcaption>
+    </td>
+  </tr>
+</table>
+</div>
+<p>Note the black between the edge between the accretion disk and the photon sphere. This is likely due to the light in this region traveling infinitely around the event horizon, which causes our simulation to time out and return a null <code>Spectrum</code>. It may also be due to light rays exiting the scene in a different direction than the background (which only exists in the xy plane behind the black hole).</p>
+
+</td></tr></table>
+
+<a name="results-2" class="anchor"><h4>Black and white renderings</h4></a>
+<p>The following is a rendering of the black hole visualized using only the light interaction from the accretion disk.</p>
+<!-- <div class="imgholder"><table><tr><td> -->
+<div align="middle">
+  <table style="width=100%">
+  <tr>
+    <td>
+      <img src="images/bw_render.png" align="middle" width="300px"/>
+      <figcaption align="middle">(-1, 20, -1)</figcaption>
+    </td>
+    <td>
+      <img src="images/bw_render2.jpg" align="middle" width="300px"/>
+      <figcaption align="middle">(-1, -2, -1)</figcaption>
+    </td>
+  </tr>
+  <figcaption>Rendering of black hole using white accretion disk</figcaption>
+</table>
+</div>
+</td></tr></table>
+
+<a name="results-3" class="anchor"><h4>Other renderings</h4></a>
+<p>The following are fun renderings we did just to test the effects of altering physics parameters on light interaction. Thanks to our dynamic light raytracing, it's able to do these without much extra computation.</p>
+<!-- <div class="imgholder"><table><tr><td> -->
+<div align="middle">
+  <table style="width=100%">
+  <tr>
+    <td>
+        <div align="middle">
+      <img src="images/no_gravity.png" align="middle" width="225px"/>
+      </div>
+      <figcaption align="middle">No gravitational effect</figcaption>
+    </td>
+  </tr>
+  <tr>
+    <td>
+        <div align="middle">
+      <img src="images/grid_binary.png" align="middle" width="225px"/>
+      </div>
+      <figcaption align="middle">Binary system. <br>Note the small slivers from each side.</figcaption>
+    </td>
+    <tr>
+        <td>
+            <div align="middle">
+                <img src="images/grid_extra1.png" align="middle" width="225px"/>
+                <figcaption align="middle">Another set of binary blackholes, but close <br> enough to appear to be fusing together  <br>despite the event horizons are not actually <br>touching each other.  Note the rings around each side.</figcaption>
+            </div>
+        </td>
+    </tr>
+  <tr>
+    <td>
+        <div align="middle">
+      <img src="images/grid_extra2.png" align="middle" width="225px"/>
+      <figcaption align="middle">One black hole in front of the other (equal mass/radius).<br> The pink one is behind the red one. <br>Note the dramatic increase in radius and the very small ring of red around the pink one.</figcaption>
+      </div>
+    </td>
+    </tr>
+  
+  </tr>
+</table>
+</div>
+</td></tr></table>
+
+<a name="results-4" class="anchor"><h4>Final renderings</h4></a>
+<p>The following are renderings with full realistic space backgrounds (achieved through nearest neighbor sampling of an image) as well as a black hole image closely resembling the coloration of the real black hole
+image captured recently. The orange coloration was done post-process in Photoshop.</p>
+<!-- <div class="imgholder"><table><tr><td> -->
+<div align="middle">
+  <table style="width=100%">
+  <tr>
+    <td>
+        <div align="middle">
+      <img src="images/star1.png" align="middle" width="300px"/>
+      <figcaption align="middle">Black hole with starry background</figcaption>
+      </div>
+    </td>
+    <td>
+        <div align="middle">
+      <img src="images/real2.png" align="middle" width="300px"/>
+      <figcaption align="middle">Orange-colored black hole to <br>resemble the original picture</figcaption>
+      </div>
+    </td>
+  </tr>
+</table>
+</div>
+</td></tr></table>
+
+</section>
+
+<section class="references">
+<a name="references" class="anchor"><h3>References</h3></a>
+<a name="ref1" class="ref">[1]</a>
+<a href="http://www.vendian.org/mncharity/dir3/blackbody/">
+Charity, M. (2016). "What Color is a BlackBody?"
+Retrieved April 27, 2018 from:
+http://www.vendian.org/mncharity/dir3/blackbody/.</a></br>
+
+<a name="ref2" class="ref">[2]</a>
+<a href="https://devblogs.nvidia.com/gpu-accelerated-black-hole-simulations/">
+Lewis, A. (2016). "GPU-Accelerated Black Hole Simulations".
+Retrieved April 27, 2018 from:
+https://devblogs.nvidia.com/gpu-accelerated-black-hole-simulations/.</a></br>
+
+<a name="ref3" class="ref">[3]</a>
+<a href="https://www.physicsoftheuniverse.com/topics_blackholes_event.html">
+Event Horizon and Accretion Disk. (2019).
+Retrieved April 27, 2018 from:
+https://www.physicsoftheuniverse.com/topics_blackholes_event.html.</a></br>
+</section>
+
+<section class="contributions">
+<a name="contributions" class="anchor"><h3>Contributions</h3></a>
+<ul>
+  <li>
+    Tiger Cao (withdrawn): Wrote python script for light trajectory, wrote backbone structure of rendering and object simulation pipeline.
+  </li>
+  <li>
+    Arman Tarkhanian: Implemented raytracing simulation logic based off our research and initial Python script, wrote luminance functions for each object, implemented background rendering (particularly checkerboard and starry texture patterns). Also helped with thought process of what to render to show final results.
+  </li>
+  <li>
+    Lulu Wang: Made entirety of final website, helped research references, helped render final images and deliverables, helped research accretion disk redshift illuminance.
+  </li>
+  <li>
+    Casper Yang: Researched (a lot of the) black hole and accretion disk physics, made deliverables video, helped plan coding structure of project such as how each object should be laid out etc.
+  </li>
+</ul>
+
+</section>
+
+</section>
+
+</div>
+
+<script type="text/javascript" src="res/jquery-2.2.2.min.js"></script>
+<script type="text/javascript" src="res/featherlight.min.js"></script>
+<script type="text/javascript" async src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+Pillow==6.0.0
+plac=1.0.0
+numpy
+numba
